@@ -30,10 +30,9 @@ client = boto3.client(
 transfer = S3Transfer(client)
 ssl._create_default_https_context = ssl._create_unverified_context
 w = open("/Users/keshavreddy/PersonalProjects/Data/HM_Urls/61.txt", "r")
-urls = []
-w = w.readlines()
+urls = w.readlines()
 
-for COUNT,url in enumerate(urls[8052:], start=8052):
+for COUNT,url in enumerate(urls, start=1):
     if '/pro/' in url:
         unique_id = uuid.uuid4().hex
         print(COUNT, url)
