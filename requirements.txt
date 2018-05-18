@@ -1,0 +1,7 @@
+requests
+bs4
+boto3
+wget
+configparser
+functools
+lxml

@@ -1,93 +1,75 @@
+import requests
+from config import ConfigSectionMap
 from bs4 import BeautifulSoup
-import uuid
-import json
-import os
 import boto3
 from boto3.s3.transfer import S3Transfer
-import requests
 import wget
-import ssl
-from functools import wraps
+import os
+import json
+import uuid
 
-def sslwrap(func):
-    @wraps(func)
-    def bar(*args, **kw):
-        kw['ssl_version'] = ssl.PROTOCOL_TLSv1
-        return func(*args, **kw)
-    return bar
-ssl.wrap_socket = sslwrap(ssl.wrap_socket)
-
-proxies = {
-    'http': 'socks5://localhost:10003',
-    'https': 'socks5://localhost:10003'
-}
-client = boto3.client(
-    's3',
-    aws_access_key_id='AWS_ACCESS_KEY',
-    aws_secret_access_key='AWS_SECRET'
-)
-
-transfer = S3Transfer(client)
-ssl._create_default_https_context = ssl._create_unverified_context
-os.chdir("/Users/keshavreddy/PersonalProjects/Data/tmp/")
-w = open("/Users/keshavreddy/PersonalProjects/Data/HM_Urls/61.txt", "r")
-urls = []
-w = w.readlines()
-headers = {
-    'user-agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36",
-    'upgrade-insecure-requests': "1",
-    'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-    'dnt': "1",
-    'accept-encoding': "gzip, deflate, br",
-    'accept-language': "en-GB,en-US;q=0.9,en;q=0.8",
-    'cookie': "v=1511609533_23fe2c3f-9c64-4f05-89b7-b3abff649dbb_db8233aacd464ab06f54d4e43e13875e; prf=listStyle%7C%7D; documentWidth=1280; documentHeight=676; xauth=1511609534; v2=1511609534_2a2c6391-b174-4273-840b-fd41ba22de0c_cf8ac8200249c83dbbcdf4d713e583fc; fstest=8",
-    'cache-control': "no-cache"
-    }
-
-
-for j in w:
-    k = j.strip().split('<')[0]
-    urls.append(k)
-print(len(urls))
+cfg_setup = ConfigSectionMap('setup')
 
 class Profile:
 
-    def __init__(self):
-        self.name =
+    def __init__(self, soup):
+        self.soup = soup
+        self.name = self.extract_name(self.soup)
+        self.user_name = self.extract_username(self.soup)
+        self.profile_pic = self.extract_profile_pic(self.soup)
+        self.description = self.extract_description(self.soup)
+        self.services_provided = self.extract_services_provided(self.soup)
+        self.areas_serviced = self.extract_areas_serviced(self.soup)
+        self.social_details = self.extract_social_details(self.soup)
+        self.profession  = self.extract_profession(self.soup)
+        self.contact_details = self.extract_contact_details(self.soup)
+        self.followers = self.extract_followers(self.soup)
 
-    def extract_name(soup):
+    def __repr__(self):
+        return repr(json.dumps({
+            "name": self.name,
+            "user_name" : self.user_name,
+            "profile_image" : self.profile_pic,
+            "description" : self.description,
+            "services_provided" : self.services_provided,
+            "areas_serviced" : self.areas_serviced,
+            "social_details" : self.social_details,
+            "profession" : self.profession,
+            "contact_details" : self.contact_details,
+            "followers" : self.followers
+        }))
+
+    def extract_name(self,soup):
         try:
             name = soup.find("div", {"class": "profile-title"}).find("a").text
         except:
             name = ""
         return name
 
-    
-    def extract_username(soup):
+    def extract_username(self,soup):
         try:
-            name = soup.find('a',{'class':'profile-full-name'}).get('href')
+            name = soup.find('a', {'class': 'profile-full-name'}).get('href')
             name = name.split('/')[-2]
         except:
             name = ""
         return name
 
-    
-    def extract_profile_pic(soup,image_url,uu_id):
+    def extract_profile_pic(self,soup, uu_id):
         try:
-            pic = soup.find('img',{'class':'profile-pic'}).get('src')
+            pic = soup.find('img', {'class': 'profile-pic'}).get('src')
             if pic == '':
                 pic = ""
             else:
                 wget.download(pic, '{}profile.jpeg'.format(uu_id))
-                transfer.upload_file('{}profile.jpeg'.format(uu_id), 'housemundynew', 'Images1/{}/{}profile.jpeg'.format(uu_id, uu_id))
+                transfer.upload_file('{}profile.jpeg'.format(uu_id), 'housemundynew',
+                                     'Images1/{}/{}profile.jpeg'.format(uu_id, uu_id))
                 pic = '{}profile.jpeg'.format(uu_id)
                 os.remove('{}profile.jpeg'.format(uu_id))
         except:
             pic = ''
         return pic
 
-    
-    def extract_description(soup):
+    def extract_description(self,soup):
         try:
             d = soup.find('div', {'class': 'profile-content-wide about-section'})
             e = d.getText()
@@ -97,8 +79,7 @@ class Profile:
             description = ''
         return description.strip()
 
-    
-    def extract_services_provided(soup):
+    def extract_services_provided(self,soup):
         d = soup.find('div', {'class': 'profile-content-wide about-section'})
         try:
             e = d.getText()
@@ -108,19 +89,19 @@ class Profile:
             service = ''
         return service
 
-    
-    def extract_areas_serviced(soup):
+    def extract_areas_serviced(self,soup):
         try:
             d = soup.find('div', {'class': 'profile-content-wide about-section'})
             e = d.getText()
-            areas = e.partition('Services Provided')[2].partition('Areas Served')[2].partition('Certifications and Awards')[0].strip()
+            areas = \
+            e.partition('Services Provided')[2].partition('Areas Served')[2].partition('Certifications and Awards')[
+                0].strip()
             areas = areas.replace("\n$('.profile-about').peekable();", '')
         except:
             areas = ''
         return areas
 
-    
-    def extract_social_details(soup):
+    def extract_social_details(self,soup):
         social = {}
         try:
             f = soup.find('a', {'class': 'sprite-profile-icons f'}).get('href')
@@ -159,8 +140,7 @@ class Profile:
         social['blog'] = blog
         return social
 
-    
-    def extract_profession(soup):
+    def extract_profession(self,soup):
         try:
             pro = soup.find("div", {"class": "info-list-text"}).text.strip()
             pro = pro.replace("\n", "")
@@ -169,8 +149,7 @@ class Profile:
             pro = ""
         return pro
 
-    
-    def extract_contact_details(soup):
+    def extract_contact_details(self,soup):
         contact_details = {}
         address = ""
         locality = ''
@@ -217,17 +196,27 @@ class Profile:
         contact_details['email'] = ''
         return contact_details
 
-    
-    def extract_followers(soup):
+    def extract_followers(self,soup):
         try:
             followers = soup.find("span", {"class": "follow-count"}).text
         except:
             followers = ""
         return followers
 
+
 class Project:
-    
-    def extract_all_project_urls(soup):
+
+    def __init__(self, soup):
+        self.soup = soup
+        self.unique_id = uuid.uuid4().hex
+        self.project_urls = self.extract_all_project_urls(self.soup)
+        self.project_list = self.getting_projects_list(self.project_urls, self.unique_id)
+
+
+    def __repr__(self):
+        return self.project_list
+
+    def extract_all_project_urls(self,soup):
         website_list = []
         website = soup.find_all("div", {"class": "sidebar-body"})
         for i in website:
@@ -238,24 +227,14 @@ class Project:
                     website_list.append(l)
         return website_list
 
-    
-    def isProject(soup):
-        try:
-            project = soup.find('div',{'class':'project-section'}).text
-        except:
-            project = ""
-        return project
-
-    
-    def extract_project_url(soup):
+    def extract_project_url(self,soup):
         try:
             url = soup.find('div', {'class': 'project-section'}).find('a').get('href')
         except:
             url = ""
         return url
 
-    
-    def extract_project_year(soup):
+    def extract_project_year(self,soup):
         try:
             year = soup.find("div", {"class": "project-year"}).text.split(":")[1].strip()
             if year == "":
@@ -264,46 +243,41 @@ class Project:
             year = ""
         return year
 
-    
-    def extract_project_cost(soup):
+    def extract_project_cost(self,soup):
         try:
-            cost = soup.find("div",{"class":"project-cost"}).text.split(":")[1].strip()
+            cost = soup.find("div", {"class": "project-cost"}).text.split(":")[1].strip()
             if cost == "":
                 cost = ""
         except:
             cost = ""
         return cost
 
-    
-    def extract_project_country(soup):
+    def extract_project_country(self,soup):
         try:
-            country = soup.find("div",{"class":"project-country"}).text.split(":")[1].strip()
+            country = soup.find("div", {"class": "project-country"}).text.split(":")[1].strip()
             if country == "":
                 country = ""
         except:
             country = ""
         return country
 
-    
-    def extract_project_pincode(soup):
+    def extract_project_pincode(self,soup):
         try:
-            country = soup.find("div",{"class":"project-zip"}).text.split(":")[1].strip()
+            country = soup.find("div", {"class": "project-zip"}).text.split(":")[1].strip()
             if country == "":
                 country = ""
         except:
             country = ""
         return country
 
-    
-    def extract_project_title(soup):
+    def extract_project_title(self,soup):
         try:
             title = soup.find("h1", {"class": "header-1 top"}).text
         except:
             title = ""
         return title
 
-    
-    def extract_images(soup, uniq_id, proj_id):
+    def extract_images(self,soup, uniq_id, proj_id):
         img = soup.find_all("div", {"class": "imageArea "})
         image_list = []
         for i in img:
@@ -311,17 +285,17 @@ class Project:
             uu_id = uuid.uuid4().hex
             wget.download(i, '{}.jpeg'.format(uu_id))
             image_list.append('{}.jpeg'.format(uu_id))
-            transfer.upload_file('{}.jpeg'.format(uu_id), 'housemundynew' , 'Images1/{}/{}/{}.jpeg'.format(uniq_id,proj_id,uu_id))
+            transfer.upload_file('{}.jpeg'.format(uu_id), 'housemundynew',
+                                 'Images1/{}/{}/{}.jpeg'.format(uniq_id, proj_id, uu_id))
             os.remove('{}.jpeg'.format(uu_id))
         return image_list
 
-    
-    def getting_projects_list(list, mydir, uniq_id):
+    def getting_projects_list(self,list, uniq_id):
         projects = []
         for j, i in enumerate(list):
             proj_id = uuid.uuid4().hex
             proj = {}
-            url_requests = requests.request('GET', i, headers=headers, proxies=proxies)
+            url_requests = requests.request('GET', i, headers=cfg_setup['headers'], proxies=cfg_setup['proxies'])
             soup = BeautifulSoup(url_requests.content, 'lxml')
             proj['id'] = proj_id
             proj['name'] = Project.extract_project_title(soup)
@@ -334,44 +308,26 @@ class Project:
         return projects
 
 
-for j,i in enumerate(urls[8052:], start=8052):
-    if '/pro/' in i:
-        print(i)
-        u_id = ''
-        u_id = uuid.uuid4().hex
-        mydir = os.path.join('/Users/keshavreddy/PersonalProjects/Data/tmp/', u_id)
-        os.mkdir(mydir)
-        os.chdir(mydir)
-        user = {}
-        url_requests = requests.request('GET', i, headers=headers, proxies=proxies)
-        soup = BeautifulSoup(url_requests.content, 'lxml')
-        user['name'] = Profile.extract_name(soup)
-        u_name = Profile.extract_username(soup)
-        user['username'] = u_name
-        user['id'] = str(u_id)
-        user['profile_image'] = Profile.extract_profile_pic(soup,mydir,u_id)
-        user['description'] = Profile.extract_description(soup)
-        user['services_provided'] = Profile.extract_services_provided(soup)
-        user['areas_serviced'] = Profile.extract_areas_serviced(soup)
-        user['profession'] = Profile.extract_profession(soup)
-        user['social_media_details'] = Profile.extract_social_details(soup)
-        user['contact_details'] = Profile.extract_contact_details(soup)
-        p_url = Project.extract_project_url(soup)
-        if p_url is not '':
-            url_requests = requests.request('GET', p_url, headers=headers, proxies=proxies)
-            soup1 = BeautifulSoup(url_requests.content, 'lxml')
-            url_list = Project.extract_all_project_urls(soup1)
-            user['projects'] = Project.getting_projects_list(url_list, mydir, u_id)
+class Data:
+
+    def __init__(self, url):
+        self.request_profile = requests.request('GET', url=url, headers=cfg_setup['headers'],
+                                                proxies=cfg_setup['proxies'])
+        self.soup = BeautifulSoup(self.request_profile.content, 'lxml')
+        self.project_url = Project.extract_project_url(self.soup)
+        self.profile_data = Profile(self.soup)
+        if self.project_url is not '':
+            self.request_project = requests.request('GET', url=self.project_url, headers=cfg_setup['headers'],
+                                                    proxies=cfg_setup['proxies'])
+            self.project_soup = BeautifulSoup(self.request_project.content, 'lxml')
+            self.project_data = Project(self.project_soup)
         else:
-            user['projects'] = ''
-        print(j)
-        f = open('/Users/keshavreddy/PersonalProjects/Data/json/' + str(u_id) + '.json', 'wt')
-        f.write(json.dumps(user,ensure_ascii=False))
-        f.close()
-        transfer.upload_file('/Users/keshavreddy/PersonalProjects/Data/json/' + str(u_id) + '.json', 'housemundynew', 'Json_dump1/{}.json'.format(str(u_id)))
-        os.remove('/Users/keshavreddy/PersonalProjects/Data/json/{}.json'.format(str(u_id)))
+            self.project_data = ''
 
-
-
-
-
+    def __repr__(self):
+        return repr(json.dumps(
+            {
+                "Profile" : self.profile_data,
+                "Project" : self.project_data
+            }
+        ))
